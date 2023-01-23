@@ -1,0 +1,146 @@
+---
+title: "multcomp"
+author: "Алиса Селезнева"
+date: "2023-01-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggpubr)
+```
+Код из презентации для загрузки.
+```{r}
+soccer_general <- read.csv("soccer.csv", sep=";")[, 2:6] %>%
+  mutate(Position = as.factor(Position),
+         Nationality = as.factor(Nationality),
+         Age = as.numeric(Age),
+         Height = as.numeric(Height)) %>%
+  filter(Nationality %in% c("Spanish", "Italian", "German", "English", "Argentinian"))
+
+set.seed(1)
+
+soccer_wrk <- soccer_general[sample(1:nrow(soccer_general), 150), ] %>%
+  mutate(Nationality = factor(Nationality))
+
+```
+Построим боксплоты, чтобы взглянуть на данные и их средние.
+```{r warning=FALSE}
+ggplot_wrk <- ggplot(data = soccer_wrk, aes(x = Position, y = Height))+
+  geom_boxplot()+
+  geom_jitter(alpha = 0.5, size = 3, color = "coral2")+
+  theme_minimal()
+ggplot_general <- ggplot(data = soccer_general, aes(x = Position, y = Height))+
+  geom_boxplot()+
+  geom_jitter(alpha = 0.4, size = 1, color = "darkcyan")+
+  theme_minimal()
+ggarrange(ggplot_general, ggplot_wrk, col = 2)
+```
+
+Строю попарные доверительные интервалы без поправки.
+```{r}
+Defenders <- soccer_wrk %>% 
+  filter(Position == "Defender") %>% 
+  pull(Height) 
+
+Goalkeepers <- soccer_wrk %>% 
+  filter(Position == "Goalkeeper") %>% 
+  pull(Height) 
+
+Midfielders <- soccer_wrk %>% 
+  filter(Position == "Midfielder") %>% 
+  pull(Height)
+
+Forwards <- soccer_wrk %>% 
+  filter(Position == "Forward") %>% 
+  pull(Height) 
+```
+
+```{r}
+t.test(Defenders, Goalkeepers) %>% 
+  with(conf.int)
+```
+
+```{r}
+t.test(Defenders, Midfielders) %>% 
+  with(conf.int)
+```
+
+```{r}
+t.test(Defenders, Forwards) %>% 
+  with(conf.int)
+```
+
+```{r}
+t.test(Goalkeepers, Midfielders) %>% 
+  with(conf.int)
+```
+
+```{r}
+t.test(Goalkeepers, Forwards) %>% 
+  with(conf.int)
+```
+
+```{r}
+t.test(Midfielders, Forwards) %>% 
+  with(conf.int)
+```
+В четырех случаях доверительный интервал не пересекает 0, это может говорить о том, что в них есть значимая статистически разница в росте. Это вратарь-нападающий, вратарь-полузащитник, защитник-полузащитник и защитник-вратарь.
+
+Построю попарные доверительные интервалы с поправкой Бонферрони.
+```{r}
+bonferroni_CWER <- 1 - (0.05/6)
+t.test(Defenders, Goalkeepers, conf.level = bonferroni_CWER) %>% 
+  with(conf.int)
+```
+
+```{r}
+t.test(Defenders, Midfielders, conf.level = bonferroni_CWER) %>% 
+  with(conf.int)
+```
+
+```{r}
+t.test(Defenders, Forwards, conf.level = bonferroni_CWER) %>% 
+  with(conf.int)
+```
+
+```{r}
+t.test(Goalkeepers, Midfielders, conf.level = bonferroni_CWER) %>% 
+  with(conf.int)
+```
+
+```{r}
+t.test(Goalkeepers, Forwards, conf.level = bonferroni_CWER) %>%
+  with(conf.int)
+```
+
+```{r}
+t.test(Midfielders, Forwards, conf.level = bonferroni_CWER) %>% 
+  with(conf.int)
+```
+Вижу, что по результатам применения поправки Бонферрони доверительные интервалы стали шире, пары защитник-вратарь, нападающий-полузащитник, вратарь-полузащитник, вратарь-нападающий имеют значимые различия. Находку о разнице между защитником и полузащитником исключаю.
+
+Посчитаю p-values с помощью pairwise.t.test без поправок.
+
+```{r, echo = FALSE}
+pairwise.t.test(soccer_wrk$Height, soccer_wrk$Position, p.adjust.method = "none", pool.sd = FALSE)
+```
+
+Посчитаю adjusted p-values методом Холма.
+
+```{r}
+pairwise.t.test(soccer_wrk$Height, soccer_wrk$Position, p.adjust.method = "holm", pool.sd = FALSE)
+```
+
+Посчитаю поправленные p-values методом Бенжамини-Хохберга.
+
+```{r}
+pairwise.t.test(soccer_wrk$Height, soccer_wrk$Position, p.adjust.method = "BH", pool.sd = FALSE)
+```
+Результаты подтвердили полученный ранее вывод.
+ 
+
+
+
+
