@@ -1,0 +1,93 @@
+---
+title: "anova"
+author: "Алиса Селезнева"
+date: "2023-01-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(multcomp)
+```
+
+```{r}
+soccer_general <- read.csv("soccer.csv", sep=";")[, 2:6] %>% 
+    mutate(Position = as.factor(Position), 
+    Nationality = as.factor(Nationality), 
+    Age = as.numeric(Age), 
+    Height = as.numeric(Height)) %>% 
+filter(Nationality %in% c("Spanish", "Italian", "German", "English", "Argentinian")) 
+set.seed(1) 
+```
+
+```{r}
+soccer_wrk <- soccer_general[sample(1:nrow(soccer_general), 150), ] %>% 
+    mutate(Nationality = factor(Nationality))
+```
+
+
+ANOVA
+
+Посмотрю с помощью дисперсионного анализа, есть ли какая-то разница между группами. 
+```{r}
+aov_position <- aov(Height ~ Position, data = soccer_wrk)
+summary(aov_position)
+```
+По результатам теста понимаю, что разница между группами есть, но сказать, между какими конкретно, не могу.
+
+Использую процедуру Хоторна-Бретца-Вестфалла для того, чтобы описать взаимосвязь между ростом футболиста и его положением на поле (p-values + доверительные интервалы).
+```{r}
+post_hoc_position <- aov_position %>%
+  glht(linfct = mcp(Position = "Tukey")) 
+summary(post_hoc_position)
+```
+```{r}
+CI <- confint(post_hoc_position)
+fortify(CI)
+```
+
+```{r}
+ggplot(CI, aes(lhs, estimate, ymin = lwr, ymax = upr)) +
+  geom_pointrange() +
+  geom_hline(yintercept=0, linetype="11", colour="grey60") +
+  geom_errorbar(width=0.1) + 
+  coord_flip() +
+  ggtitle("95% family-wise доверительный интервал") +
+  ylab("Разница в среднем росте, см") +
+  xlab("Позиция") +
+  theme_light()
+```
+
+График наглядно показывает, что статистически значимая разница есть в парах полузащитник-вратарь, полузащитник-защитник, вратарь-нападающий и вратарь-защитник. Вратари во всех парах выше. Все согласуется с прошлой домашкой.
+
+
+Теперь проанализирую взаимосвязь роста и страны, за которую играет футболист.
+
+Сначала проведу дисперсионный анализ.
+```{r}
+aov_nationality <- aov(Height ~ Nationality, data = soccer_wrk)
+summary(aov_nationality)
+```
+Похоже, что разницы между группами нет. 
+
+```{r}
+post_hoc_nationality <- aov_nationality %>%
+  glht(linfct = mcp(Nationality = "Tukey")) 
+summary(post_hoc_nationality)
+
+CI_nat <- confint(post_hoc_nationality)
+```
+```{r}
+ggplot(CI_nat, aes(lhs, estimate, ymin = lwr, ymax = upr)) +
+  geom_pointrange() +
+  geom_hline(yintercept=0, linetype="11", colour="grey60") +
+  geom_errorbar(width=0.1) + 
+  coord_flip() +
+  ggtitle("95% family-wise доверительный интервал") +
+  ylab("Разница в среднем росте, см") +
+  xlab("Страна") +
+  theme_light()
+```
+
+Ожидаемо, никакой статистически значимой разницы я не выявила. 
